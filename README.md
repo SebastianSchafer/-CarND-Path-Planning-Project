@@ -4,10 +4,24 @@ Self-Driving Car Engineer Nanodegree Program
 This project implements a highway path planner in C++, usign sensor data and cost functions to giude a vehicle in a sae and efficient manner along a multi-lane highway. For original Udacity documentation, scroll to bottom of this readme.
 
 ## Overview
-This path planner uses waypoint data provided in the [map](https://github.com/SebastianSchafer/CarND-Path-Planning-Project/blob/master/data/highway_map.csv) as well as sensor data received from the [simulator](https://github.com/udacity/self-driving-car-sim/releases/tag/T3_v1.2). The latter is an array of sensor data for all vehicles travelling on the highway in the same direction as the autonomous car.
-Based on lane occupcancy and costs associated to lane speed, vehicle clearance, and lane changes, the planner will decide on the best lane to travel in. This is followed by generating a smooth path that maximizes speed safely while not exceeding acceleration anand jerk limit values.
+This path planner uses waypoint data provided in the [map](https://github.com/SebastianSchafer/CarND-Path-Planning-Project/blob/master/data/highway_map.csv) as well as sensor data received from the [simulator](https://github.com/udacity/self-driving-car-sim/releases/tag/T3_v1.2). The latter is an array of sensor data for all vehicles travelling on the highway in the same direction as the autonomous car. <img align="right" width="320"  src="10x.png">
+Based on lane occupcancy and costs associated to lane speed, vehicle clearance, and lane changes, the planner will decide on the best lane to travel in. This is followed by generating a smooth path that maximizes speed safely while not exceeding acceleration and jerk limit values. 
 The goal is to traverse the highway at speed for at least 4.32 miles without exceeding any limits for speed, acceleration or jerk and avoiding any collisions. This implementation seems fairly robust and the planner worked without failure for 10x this limit, going 43+ miles.
 
+
+## Code description
+The code is mostly self-explanatory and documented. These are the basic sections that are relevant for the planner:
+
+* [Lines 106-120](https://github.com/SebastianSchafer/CarND-Path-Planning-Project/blob/32b5840a84f0c821c2fec621212bd7860711683e/src/main.cpp#L106-L120): Initialize lanes and populate with sensor data, followed by selecting the target lane based on the associated cost of traveling in each lane.
+* [Lines 124-161](https://github.com/SebastianSchafer/CarND-Path-Planning-Project/blob/32b5840a84f0c821c2fec621212bd7860711683e/src/main.cpp#L124-L161): Create a path from current position and lane to target lane and estimated position. This uses a [spline](https://github.com/ttk592/spline/) to guarantee a smooth path and starts the new path a number of `TRANSITION_STEPS` past the current position to assure a smooth path transition even with a delay in computing the new path. The spline is calculated in XY coordinates, msotly because the transformation between Frenet and XY coordinates is not smooth. This requires a rotation onto the cars' current orientation as the spline library natureally requires a unique function - this of course would make the current implementation not suitable for generating a hairpin or u-turn in a single path segment.
+* [Lines 162-189](https://github.com/SebastianSchafer/CarND-Path-Planning-Project/blob/32b5840a84f0c821c2fec621212bd7860711683e/src/main.cpp#L162-L189): <img align="right" width="320"  src="free_lane.png"> Calculate the final path by sampling the spline using current and target velocities and maximizing vehicle speed without exceeding maximum speed or velocity. The final path is then appended to the first x step of the previous path, rotated back into global coordinates and transferred back to the simulator, which will try to move as close to the target speed as possible if lane conditions allow it.
+
+## General remarks
+This implementation works well for the given project, but would not be suited for use in a real vehicle. 
+- The planner only considers directly neighbouring lanes. This can be expanded by lowering the cost of a given lane if it itself neighours a (free) lane with low cost.
+- I chose to implement the planner using jsut functions as it's easiest for the goal. Having a stateful, class-based implementation - preferably in a language like Rust - would allow for more flexibility and ease things like optimizing speed.
+- Radial accelearation is not taken into account directly. Instead, the vehicle will keep the velocity constant above a given curvature threshold. This works well on the given track - however this would nt work well for twisty roads with tight curves.
+- A class-based implementaiton also would help avoid getting stuck in a constellation as is shown in the first figure, by taking into account information on all lanes as well as adding a cost that integrates speed penalty over time. Thsi would have to be combined with an option to decelarate in order to find a gap in the neighbouring lane.
 
 
 # Original Udacity documentation
