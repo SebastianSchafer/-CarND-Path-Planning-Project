@@ -3,15 +3,24 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <chrono>
+#include <thread>
+#include <math.h>
+
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "helpers.h"
 #include "json.hpp"
+#include "spline.h"
+
+#include "planning.cpp"
 
 // for convenience
 using nlohmann::json;
 using std::string;
 using std::vector;
+using namespace std;
+
 
 int main() {
   uWS::Hub h;
@@ -58,7 +67,7 @@ int main() {
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
     if (length && length > 2 && data[0] == '4' && data[1] == '2') {
-
+      // this_thread::sleep_for(chrono::milliseconds(60));
       auto s = hasData(data);
 
       if (s != "") {
@@ -92,13 +101,95 @@ int main() {
 
           vector<double> next_x_vals;
           vector<double> next_y_vals;
+// ========= insert own code here ======================================================
 
-          /**
-           * TODO: define a path made up of (x,y) points that the car will visit
-           *   sequentially every .02 seconds
-           */
+          car_speed = car_speed / MS_TO_MPH;
+          vector<Lane> lanes;
+          init_lanes(lanes);
+          int remaining_steps = previous_path_x.size();
+          populate_lanes(lanes, sensor_fusion, car_s, car_speed, TRANSITION_STEPS);
 
+          // find best lane for path forward
+          int target_lane = best_lane(lanes, car_lane(car_d));
+          Lane &tl = lanes[target_lane];
+          tk::spline spline;
+          vector<double> path_s;
+          vector<double> path_d;
+          double angle;
+          vector<double> px;
+          vector<double> py;
 
+          // path starts after transition steps to account for processing delay
+          // when starting up the simulator, have no previous path and v=0
+          if (remaining_steps < TRANSITION_STEPS) {
+            angle = deg2rad(car_yaw);
+            px.push_back(car_x);
+            py.push_back(car_y);
+            px.push_back(car_x + cos(angle)*1);
+            py.push_back(car_y + sin(angle)*1);
+          } else {
+            double px1 = previous_path_x[TRANSITION_STEPS];
+            double py1 = previous_path_y[TRANSITION_STEPS];
+            double px0 = previous_path_x[TRANSITION_STEPS + 1];
+            double py0 = previous_path_y[TRANSITION_STEPS + 1];
+            px.push_back(px1);
+            py.push_back(py1);
+            px.push_back(px0);
+            py.push_back(py0);
+            car_x = previous_path_x[TRANSITION_STEPS];
+            car_y = previous_path_y[TRANSITION_STEPS];
+            angle = atan2(py0 - py1, px0 - px1);
+            car_speed = dist(py0, px0, py1, px1) * RATE;
+          }
+          double t_s = target_s(car_s, min(car_speed, MAX_SPEED), tl.front_speed);
+          vector<double> xy = getXY(t_s - fabs(tl.front_speed) / RATE * SPLINE_STEPS, lane_d(target_lane), 
+                                    map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          px.push_back(xy[0]);
+          py.push_back(xy[1]);
+          xy = getXY(t_s, lane_d(target_lane), 
+                    map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          px.push_back(xy[0]);
+          py.push_back(xy[1]);
+          double xi;
+
+          for (int i=0; i<px.size(); i++) {
+            xi = px[i];
+            px[i] = (px[i] - car_x) * cos(angle) + (py[i] - car_y) * sin(angle);
+            py[i] = (py[i] - car_y) * cos(angle) - (xi - car_x) * sin(angle);
+          }
+
+          spline.set_points(px, py);
+          sample_spline_xy(px[0], py[0], car_speed, tl.front_speed, spline, next_x_vals, next_y_vals, 
+                        map_waypoints_s, map_waypoints_x, map_waypoints_y);
+
+          for (int i=0; i<next_y_vals.size(); i++) {
+            xi = next_x_vals[i];
+            next_x_vals[i] = car_x + next_x_vals[i] * cos(angle) - next_y_vals[i] * sin(angle);
+            next_y_vals[i] = car_y + next_y_vals[i] * cos(angle) + xi * sin(angle);
+          }
+
+          px.clear();
+          py.clear();
+          if (fabs(fmod(car_d, LANE_WIDTH) - LANE_WIDTH/2) > 0.1 * LANE_WIDTH) {
+            for (double d=0; d<remaining_steps; d++) {
+              px.push_back(previous_path_x[d]);
+              py.push_back(previous_path_y[d]);
+            }
+            next_x_vals = px;
+            next_y_vals = py;
+          } else if (remaining_steps > TRANSITION_STEPS) {
+            for (double d=0; d<TRANSITION_STEPS; d++) {
+              px.push_back(previous_path_x[d]);
+              py.push_back(previous_path_y[d]);
+            }
+            px.insert(px.end(), next_x_vals.begin(), next_x_vals.end());
+            py.insert(py.end(), next_y_vals.begin(), next_y_vals.end());
+            next_x_vals = px;
+            next_y_vals = py;
+            }
+            
+
+// ============= provided code continues ==============================================
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
 

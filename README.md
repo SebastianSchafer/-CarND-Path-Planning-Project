@@ -1,5 +1,16 @@
 # CarND-Path-Planning-Project
 Self-Driving Car Engineer Nanodegree Program
+
+This project implements a highway path planner in C++, usign sensor data and cost functions to giude a vehicle in a sae and efficient manner along a multi-lane highway. For original Udacity documentation, scroll to bottom of this readme.
+
+## Overview
+This path planner uses waypoint data provided in the [map](https://github.com/SebastianSchafer/CarND-Path-Planning-Project/blob/master/data/highway_map.csv) as well as sensor data received from the [simulator](https://github.com/udacity/self-driving-car-sim/releases/tag/T3_v1.2). The latter is an array of sensor data for all vehicles travelling on the highway in the same direction as the autonomous car.
+Based on lane occupcancy and costs associated to lane speed, vehicle clearance, and lane changes, the planner will decide on the best lane to travel in. This is followed by generating a smooth path that maximizes speed safely while not exceeding acceleration anand jerk limit values.
+The goal is to traverse the highway at speed for at least 4.32 miles without exceeding any limits for speed, acceleration or jerk and avoiding any collisions. This implementation seems fairly robust and the planner worked without failure for 10x this limit, going 43+ miles.
+
+
+
+# Original Udacity documentation
    
 ### Simulator.
 You can download the Term3 Simulator which contains the Path Planning Project from the [releases tab (https://github.com/udacity/self-driving-car-sim/releases/tag/T3_v1.2).  
